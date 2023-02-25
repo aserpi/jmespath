@@ -1,14 +1,16 @@
 import json
 import re
+import os
 import sys
 
-# TODO(aserpi): Migrate dependencies to /lib
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
+
 # TODO(aserpi): Rationalize imports
 import jmespath
 from jmespath import functions
 from jmespath.exceptions import JMESPathError, UnknownFunctionError
 from splunklib.searchcommands import Configuration, dispatch, Option, StreamingCommand, validators
-from six import string_types, text_type
 
 
 class JmespathSplunkFunctions(functions.Functions):
@@ -59,8 +61,8 @@ class JmespathSplunkFunctions(functions.Functions):
             try:
                 k = item[key]
                 v = item[value]
-                if not isinstance(k, string_types):
-                    k = text_type(k)
+                if not isinstance(k, str):
+                    k = str(k)
                 # TODO(aserpi): Remove, no need to sanitize at this stage.
                 k = sanitize_fieldname(k)
                 # TODO: User option: Overwrite, or make multivalue.
@@ -98,9 +100,9 @@ def flatten(container):
             if isinstance(i, (list, tuple, dict)):
                 yield json.dumps(i)
             else:
-                yield text_type(i)
+                yield str(i)
     else:
-        yield text_type(container)
+        yield str(container)
 
 
 # TODO(aserpi): Refactor
