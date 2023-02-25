@@ -68,12 +68,12 @@ class JsonFormatCommand(StreamingCommand):
 
     def stream(self, records):
         json_loads = json.loads
-        json_dumps = partial(json.dumps, indent=self.indent)
+        json_dumps = partial(json.dumps, ensure_ascii=False, indent=self.indent)
 
         if self.order == "preserve":
             json_loads = partial(json.loads)
         elif self.order == "sort":
-            json_dumps = partial(json.dumps, indent=self.indent, sort_keys=True)
+            json_dumps = partial(json.dumps, ensure_ascii=False, indent=self.indent, sort_keys=True)
 
         if self.input_mode == "python":
             json_loads = from_python
@@ -92,14 +92,14 @@ class JsonFormatCommand(StreamingCommand):
         def output_json(json_string):
             # Normal mode.  Just load and dump json
             data = json_loads(json_string)
-            return json_dumps(data)
+            return json_dumps(data, ensure_ascii=False)
 
         def output_makeresults(json_string):
             # Build a "makeresults" (run-anywhere) output sample
             quote_chars = ('\\', "\n", "\t", '"')       # Order matters
             try:
                 data = json_loads(json_string)
-                json_min = json.dumps(data, indent=None, separators=(",", ":"))
+                json_min = json.dumps(data, ensure_ascii=False, indent=None, separators=(",", ":"))
                 for char in quote_chars:
                     json_min = json_min.replace(char, "\\" + char)
                 return '| makeresults | eval {}="{}"'.format(src_field, json_min)

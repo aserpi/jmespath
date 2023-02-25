@@ -62,8 +62,6 @@ class JmespathSplunkFunctions(jmespath.functions.Functions):
                 v = item[value]
                 if not isinstance(k, str):
                     k = str(k)
-                # TODO(aserpi): Remove, no need to sanitize at this stage.
-                k = sanitize_fieldname(k)
                 # TODO: User option: Overwrite, or make multivalue.
                 # Possibly just make 2 different functions?
                 if k not in d:
@@ -80,24 +78,13 @@ class JmespathSplunkFunctions(jmespath.functions.Functions):
         return d
 
 
-# TODO(aserpi): Review
-def sanitize_fieldname(field):
-    # TODO: Add caching if needed
-    clean = re.sub(r'[^A-Za-z0-9_.{}\[\]]', "_", field)
-    # Remove leading/trailing underscores
-    # It would be nice to preserve explicit underscores, but I don't want to complicate the code
-    # for a not-yet-existing corner case. Generally it's better to avoid hidden fields.
-    clean = clean.strip("_")
-    return clean
-
-
 def flatten(container):
     if isinstance(container, dict):
-        yield json.dumps(container)
+        yield json.dumps(container, ensure_ascii=False)
     elif isinstance(container, (list, tuple)):
         for i in container:
             if isinstance(i, (list, tuple, dict)):
-                yield json.dumps(i)
+                yield json.dumps(i, ensure_ascii=False)
             else:
                 yield str(i)
     else:
@@ -127,7 +114,7 @@ def output_to_wildcard(values, output, record):
 
     if isinstance(values, dict):
         for (key, value) in values.items():
-            final_field = output_template.format(sanitize_fieldname(key))
+            final_field = output_template.format(key)
             if isinstance(value, (list, tuple)):
                 if not value:
                     value = None
@@ -135,10 +122,10 @@ def output_to_wildcard(values, output, record):
                     # Unroll to better match Splunk's default handling of multivalue fields
                     value = value[0]
                 else:
-                    value = json.dumps(value)
+                    value = json.dumps(value, ensure_ascii=False)
                 record[final_field] = value
             elif isinstance(value, dict):
-                record[final_field] = json.dumps(value)
+                record[final_field] = json.dumps(value, ensure_ascii=False)
             else:
                 record[final_field] = value
     else:
@@ -146,7 +133,7 @@ def output_to_wildcard(values, output, record):
         # Maybe users didn't mean to use '*' in output, or possibly a record/data specific issue.
         # TODO(aserpi): Find a better way to handle this case.
         final_field = output_template.format("anonymous")
-        record[final_field] = json.dumps(values)
+        record[final_field] = json.dumps(values, ensure_ascii=False)
 
 
 @Configuration()
