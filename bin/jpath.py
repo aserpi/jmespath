@@ -11,10 +11,6 @@ from splunklib.searchcommands import Configuration, dispatch, Option, StreamingC
 from six import string_types, text_type
 
 
-# TODO(aserpi): Make command option
-ERROR_FIELD = "_jmespath_error"
-
-
 class JmespathSplunkFunctions(functions.Functions):
     """Custom functions for JMSEPath to solve some typical Splunk use cases."""
 
@@ -154,6 +150,7 @@ def output_to_wildcard(values, output, record):
 
 @Configuration()
 class JMESPath(StreamingCommand):
+    error = Option(default="_jmespath_error", require=False, validate=validators.Fieldname())
     default = Option(default=None, require=False)
     input = Option(default="_raw", require=False, validate=validators.Fieldname())
     output = Option(default="jpath", require=False)
@@ -175,7 +172,7 @@ class JMESPath(StreamingCommand):
                 field_json = json.loads(field)
             except ValueError:
                 # TODO(aserpi): Override output with default?
-                record[ERROR_FIELD] = "Invalid JSON."
+                record[self.error] = "Invalid JSON."
                 yield record
                 continue
 
@@ -189,9 +186,9 @@ class JMESPath(StreamingCommand):
                 raise ValueError(f"Issue with JMESPath expression. {e}")
             except JMESPathError as e:
                 # FIXME: Not 100% sure about what these errors mean. Should they halt?
-                record[ERROR_FIELD] = f"JMESPath error: {e}"
+                record[self.error] = f"JMESPath error: {e}"
             except Exception as e:
-                record[ERROR_FIELD] = f"Exception: {e}"
+                record[self.error] = f"Exception: {e}"
 
             yield record
 
