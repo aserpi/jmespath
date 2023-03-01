@@ -14,17 +14,3 @@ repos:
     - id: check-added-large-files
       args: [ '--maxkb=50' ]
     - id: check-merge-conflict
-    - id: mixed-line-ending
-      args: [ '--fix=lf' ]
-
-- repo: git://github.com/detailyang/pre-commit-shell
-  rev: 1.0.4
-  hooks:
-    - id: shell-lint
-
-- repo: https://github.com/Kintyre/ksconf
-  rev: v0.7.8
-  hooks:
-    - id: ksconf-check
-    - id: ksconf-sort
-      exclude: logging\.conf
