@@ -106,15 +106,13 @@ def output_to_field(values, output, record):
 
 # TODO(aserpi): Refactor
 def output_to_wildcard(values, output, record):
-    # TODO(aserpi): Invert order of following two instructions.
-    output_template = output.replace("*", "{}", 1)
     if values is None:
         # Don't bother to make any fields
         return
 
     if isinstance(values, dict):
         for (key, value) in values.items():
-            final_field = output_template.format(key)
+            output = output.replace("*", key, 1)
             if isinstance(value, (list, tuple)):
                 if not value:
                     value = None
@@ -123,17 +121,16 @@ def output_to_wildcard(values, output, record):
                     value = value[0]
                 else:
                     value = json.dumps(value, ensure_ascii=False)
-                record[final_field] = value
+                record[output] = value
             elif isinstance(value, dict):
-                record[final_field] = json.dumps(value, ensure_ascii=False)
+                record[output] = json.dumps(value, ensure_ascii=False)
             else:
-                record[final_field] = value
+                record[output] = value
     else:
         # Fallback to using a silly name since there's no key to work with.
         # Maybe users didn't mean to use '*' in output, or possibly a record/data specific issue.
         # TODO(aserpi): Find a better way to handle this case.
-        final_field = output_template.format("anonymous")
-        record[final_field] = json.dumps(values, ensure_ascii=False)
+        record[output] = json.dumps(values, ensure_ascii=False)
 
 
 @Configuration()
