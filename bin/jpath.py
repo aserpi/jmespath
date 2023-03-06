@@ -83,61 +83,6 @@ class JmespathSplunkFunctions(jmespath.functions.Functions):
         return object_
 
 
-def flatten(container):
-    if isinstance(container, dict):
-        yield json.dumps(container, ensure_ascii=False)
-    elif isinstance(container, (list, tuple)):
-        for i in container:
-            if isinstance(i, (list, tuple, dict)):
-                yield json.dumps(i, ensure_ascii=False)
-            else:
-                yield str(i)
-    else:
-        yield str(container)
-
-
-# TODO(aserpi): Refactor
-def output_to_field(values, output, record):
-    content = list(flatten(values))
-    if not content:
-        content = None
-        # TODO(aserpi): Remove.
-        record[output] = None
-    elif len(content) == 1:
-        # Avoid the overhead of multivalue field encoding
-        content = content[0]
-    record[output] = content
-
-
-# TODO(aserpi): Refactor
-def output_to_wildcard(values, output, record):
-    if values is None:
-        # Don't bother to make any fields
-        return
-
-    if isinstance(values, dict):
-        for (key, value) in values.items():
-            output = output.replace("*", key, 1)
-            if isinstance(value, (list, tuple)):
-                if not value:
-                    value = None
-                elif len(value) == 1:
-                    # Unroll to better match Splunk's default handling of multivalue fields
-                    value = value[0]
-                else:
-                    value = json.dumps(value, ensure_ascii=False)
-                record[output] = value
-            elif isinstance(value, dict):
-                record[output] = json.dumps(value, ensure_ascii=False)
-            else:
-                record[output] = value
-    else:
-        # Fallback to using a silly name since there's no key to work with.
-        # Maybe users didn't mean to use '*' in output, or possibly a record/data specific issue.
-        # TODO(aserpi): Find a better way to handle this case.
-        record[output] = json.dumps(values, ensure_ascii=False)
-
-
 @Configuration()
 class JMESPath(StreamingCommand):
     error = Option(default="_jmespath_error", require=False, validate=validators.Fieldname())
@@ -145,10 +90,42 @@ class JMESPath(StreamingCommand):
     input = Option(default="_raw", require=False, validate=validators.Fieldname())
     output = Option(default="jpath", require=False)
 
+    @staticmethod
+    def flatten(arg):
+        if isinstance(arg, dict):
+            yield json.dumps(arg, ensure_ascii=False)
+        elif isinstance(arg, (list, tuple)):
+            for item in arg:
+                if isinstance(item, (list, tuple, dict)):
+                    yield json.dumps(item, ensure_ascii=False)
+                else:
+                    yield str(item)
+        else:
+            yield str(arg)
+
+    def output_to_field(self, record, values):
+        self.write_output(record, self.output, values)
+
+    def output_to_wildcard_fields(self, record, values):
+        if isinstance(values, dict):
+            for (key, value) in values.items():
+                self.write_output(record, self.output.replace("*", key, 1), value)
+        else:
+            # TODO(aserpi): Find a better way to handle this case.
+            self.write_output(record, self.output, values)
+
+    def write_output(self, record, field, values):
+        flat_values = list(self.flatten(values))
+        if not flat_values:
+            flat_values = None
+        elif len(flat_values) == 1:
+            # Avoid the overhead of multivalue field encoding
+            flat_values = flat_values[0]
+        self.add_field(record, field, flat_values)
+
     def stream(self, records):
         if len(self.fieldnames) != 1:
             raise ValueError("Requires exactly one expression argument.")
-        apply_output = output_to_wildcard if "*" in self.output else output_to_field
         jmespath_expr = jmespath.compile(self.fieldnames[0])
         jmespath_options = jmespath.Options(custom_functions=JmespathSplunkFunctions())
 
@@ -162,23 +139,26 @@ class JMESPath(StreamingCommand):
                 field_json = json.loads(field)
             except ValueError:
                 # TODO(aserpi): Override output with default?
-                record[self.error] = "Invalid JSON."
+                self.add_field(record, self.error, "Invalid JSON.")
                 yield record
                 continue
 
             try:
-                output = jmespath_expr.search(field_json, options=jmespath_options)
-                if output is not None:
-                    apply_output(output, self.output, record)
+                jmespath_result = jmespath_expr.search(field_json, options=jmespath_options)
+                if jmespath_result is not None:
+                    if "*" in self.output:
+                        self.output_to_wildcard_fields(record, jmespath_result)
+                    else:
+                        self.output_to_field(record, jmespath_result)
                 elif self.default is not None:
-                    record[self.output] = self.default
+                    self.add_field(record, self.output, self.default)
             except jmespath.exceptions.UnknownFunctionError as e:
-                raise ValueError(f"Issue with JMESPath expression. {e}")
+                raise ValueError(f"Issue with JMESPath expression: {e}")
             except jmespath.exceptions.JMESPathError as e:
                 # FIXME: Not 100% sure about what these errors mean. Should they halt?
-                record[self.error] = f"JMESPath error: {e}"
+                self.add_field(record, self.error, f"JMESPath error: {e}")
             except Exception as e:
-                record[self.error] = f"Exception: {e}"
+                self.add_field(record, self.error, f"Exception: {e}")
 
             yield record
 
