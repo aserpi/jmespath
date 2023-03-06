@@ -3,25 +3,23 @@ import re
 import os
 import sys
 
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
-# TODO(aserpi): Rationalize imports
 import jmespath
-from jmespath import functions
-from jmespath.exceptions import JMESPathError, UnknownFunctionError
+import jmespath.exceptions
+import jmespath.functions
 from splunklib.searchcommands import Configuration, dispatch, Option, StreamingCommand, validators
 
 
-class JmespathSplunkFunctions(functions.Functions):
+class JmespathSplunkFunctions(jmespath.functions.Functions):
     """Custom functions for JMSEPath to solve some typical Splunk use cases."""
 
-    @functions.signature({'types': ['object']})
+    @jmespath.functions.signature({'types': ['object']})
     def _func_items(self, h):
         """Create a [name, value] array for each name/value pair in an object."""
         return [list(item) for item in h.items()]
 
-    @functions.signature({'types': ['array']})
+    @jmespath.functions.signature({'types': ['array']})
     def _func_to_hash(self, array):
         """Build an object from an array of name/value pairs.
 
@@ -37,7 +35,7 @@ class JmespathSplunkFunctions(functions.Functions):
                 pass
         return h
 
-    @functions.signature({'types': ['string', 'array']})
+    @jmespath.functions.signature({'types': ['string', 'array']})
     def _func_from_string(self, s):
         """Parse a nested JSON text."""
         if s is None:
@@ -49,7 +47,8 @@ class JmespathSplunkFunctions(functions.Functions):
         except Exception:
             return s
 
-    @functions.signature({'types': ['array']}, {'types':['string']}, {'types':['string']})
+    @jmespath.functions.signature({'types': ['array']}, {'types': ['string']},
+                                  {'types': ['string']})
     def _func_unroll(self, objs, key, value):
         """Build an object from an array of objects with name/value pairs.
 
@@ -184,9 +183,9 @@ class JMESPath(StreamingCommand):
                     apply_output(output, self.output, record)
                 elif self.default is not None:
                     record[self.output] = self.default
-            except UnknownFunctionError as e:
+            except jmespath.exceptions.UnknownFunctionError as e:
                 raise ValueError(f"Issue with JMESPath expression. {e}")
-            except JMESPathError as e:
+            except jmespath.exceptions.JMESPathError as e:
                 # FIXME: Not 100% sure about what these errors mean. Should they halt?
                 record[self.error] = f"JMESPath error: {e}"
             except Exception as e:
