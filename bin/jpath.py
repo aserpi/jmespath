@@ -110,8 +110,10 @@ class JMESPath(StreamingCommand):
         if isinstance(values, dict):
             for (key, value) in values.items():
                 self.write_output(record, self.output.replace("*", key, 1), value)
+        elif isinstance(values, list):
+            for idx, value in enumerate(values):
+                self.write_output(record, self.output.replace("*", idx, 1), value)
         else:
-            # TODO(aserpi): Find a better way to handle this case.
             self.write_output(record, self.output, values)
 
     def write_output(self, record, field, values):
