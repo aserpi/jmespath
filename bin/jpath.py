@@ -61,12 +61,12 @@ class JMESPath(StreamingCommand):
 
         for record in records:
             field = record.get(self.input)
-            if isinstance(field, list):
-                # TODO: Support multivalue fields
-                field = field[0]
 
             try:
-                field_json = json.loads(field)
+                if isinstance(field, list):
+                    field_json = [json.loads(v) for v in field]
+                else:
+                    field_json = json.loads(field)
             except ValueError:
                 # TODO(aserpi): Override output with default?
                 self.add_field(record, self.error, "Invalid JSON.")
