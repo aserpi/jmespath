@@ -1,5 +1,4 @@
 import json
-import re
 import os
 import sys
 
@@ -14,68 +13,74 @@ from splunklib.searchcommands import Configuration, dispatch, Option, StreamingC
 class JmespathSplunkFunctions(jmespath.functions.Functions):
     """Custom functions for JMSEPath to solve some typical Splunk use cases."""
 
-    @jmespath.functions.signature({'types': ['object']})
-    def _func_items(self, h):
-        """Create a [name, value] array for each name/value pair in an object."""
-        return [list(item) for item in h.items()]
+    @jmespath.functions.signature({"types": ["array", "string"]})
+    def _func_from_string(self, arg):
+        """Parse a nested JSON text."""
+        if arg is None:
+            return None
+        if isinstance(arg, (list, tuple)):
+            return [json.loads(item) for item in arg]
+        try:
+            return json.loads(arg)
+        except Exception:
+            return arg
 
-    @jmespath.functions.signature({'types': ['array']})
+    @jmespath.functions.signature({"types": ["object"]})
+    def _func_items(self, arg):
+        """See pairs(arg)."""
+        return self._func_pairs(arg)
+
+    @jmespath.functions.signature({"types": ["object"]})
+    def _func_pairs(self, arg):
+        """Create a [key, value] array for each key value pair in an object."""
+        return [list(item) for item in arg.items()]
+
+    @jmespath.functions.signature({"types": ["array"]})
     def _func_to_hash(self, array):
-        """Build an object from an array of name/value pairs.
+        """Build an object from an array of key value pairs.
 
         If there are duplicates, the last value wins.
         It is the inverse of items().
         """
-        h = {}
+        object_ = {}
         for item in array:
             try:
-                key, val = item
-                h[key] = val
+                key, value = item
+                object_[key] = value
             except Exception:
                 pass
-        return h
+        return object_
 
-    @jmespath.functions.signature({'types': ['string', 'array']})
-    def _func_from_string(self, s):
-        """Parse a nested JSON text."""
-        if s is None:
-            return None
-        if isinstance(s, (list, tuple)):
-            return [json.loads(i) for i in s]
-        try:
-            return json.loads(s)
-        except Exception:
-            return s
-
-    @jmespath.functions.signature({'types': ['array']}, {'types': ['string']},
-                                  {'types': ['string']})
-    def _func_unroll(self, objs, key, value):
+    @jmespath.functions.signature({"types": ["array"]}, {"types": ["string"]},
+                                  {"types": ["string"]})
+    def _func_unroll(self, array, key_key, value_key):
         """Build an object from an array of objects with name/value pairs.
 
         Example: unroll([{"Name": "Pair name", "Value": "Pair value"}], "Name", "Value")
         produces {"Pair name": "Pair value"}.
         """
-        d = {}
-        for item in objs:
+        object_ = {}
+        for item in array:
             try:
-                k = item[key]
-                v = item[value]
-                if not isinstance(k, str):
-                    k = str(k)
-                # TODO: User option: Overwrite, or make multivalue.
-                # Possibly just make 2 different functions?
-                if k not in d:
-                    d[k] = v
+                key = item[key_key]
+                value = item[value_key]
+                if not isinstance(key, str):
+                    key = str(key)
+
+                # TODO: User option: Overwrite, keep, or make multivalue.
+                if key not in object_:
+                    object_[key] = value
+                elif isinstance(object_[key], list):
+                    object_[key].append(value)
                 else:
-                    # Opportunistically turn this into a container to hold more than on value.
-                    # Generally harmful to structured data, but plays nice with Splunk's mvfields
-                    if not isinstance(d[k], list):
-                        d[k] = [d[k]]
-                    d[k].append(v)
+                    # Opportunistically convert into an array to hold multiple values.
+                    # Generally harmful to structured data, but plays nice with Splunk's multivalue
+                    # fields.
+                    object_[key] = [object_[key], value]
             except KeyError:
                 # If either field is missing, just silently move on
                 continue
-        return d
+        return object_
 
 
 def flatten(container):
