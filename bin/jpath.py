@@ -6,16 +6,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import jmespath
 import jmespath.exceptions
-from splunklib.searchcommands import Configuration, dispatch, Option, StreamingCommand, validators
+from splunklib.searchcommands import Configuration, dispatch, Option, StreamingCommand
 
 from jmespath_splunk_functions import JmespathSplunkFunctions
 
 
 @Configuration()
 class JMESPath(StreamingCommand):
-    error = Option(default="_jmespath_error", require=False, validate=validators.Fieldname())
+    error = Option(default="_jmespath_error", require=False)
     default = Option(default=None, require=False)
-    input = Option(default="_raw", require=False, validate=validators.Fieldname())
+    input = Option(default="_raw", require=False)
     output = Option(default="jpath", require=False)
 
     @staticmethod
