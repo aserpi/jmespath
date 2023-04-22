@@ -16,7 +16,7 @@ class JMESPath(StreamingCommand):
     error = Option(default="_jmespath_error", require=False)
     default = Option(default=None, require=False)
     input = Option(default="_raw", require=False)
-    output = Option(default="jpath", require=False)
+    output = Option(default="jmespath", require=False)
 
     @staticmethod
     def flatten(arg):
