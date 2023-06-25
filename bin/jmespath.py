@@ -13,10 +13,11 @@ from jmespath_splunk_functions import JmespathSplunkFunctions
 
 @Configuration()
 class JMESPath(StreamingCommand):
-    error = Option(default="_jmespath_error", require=False)
-    default = Option(default=None, require=False)
-    input = Option(default="_raw", require=False)
-    output = Option(default="jmespath", require=False)
+    default = Option(doc="Default value for empty results.", default=None, require=False)
+    errors = Option(doc="Field in which to store errors. Default: _jmespath_error.",
+                    default="_jmespath_error", require=False)
+    input = Option(doc="Input field. Default: _raw.", default="_raw", require=False)
+    output = Option(doc="Output field. Default: jmespath", default="jmespath", require=False)
 
     @staticmethod
     def flatten(arg):
@@ -69,7 +70,7 @@ class JMESPath(StreamingCommand):
                     field_json = json.loads(field)
             except ValueError:
                 # TODO(aserpi): Override output with default?
-                self.add_field(record, self.error, "Invalid JSON.")
+                self.add_field(record, self.errors, "Invalid JSON.")
                 yield record
                 continue
 
@@ -86,9 +87,9 @@ class JMESPath(StreamingCommand):
                 raise ValueError(f"Issue with JMESPath expression: {e}")
             except jmespath.exceptions.JMESPathError as e:
                 # FIXME: Not 100% sure about what these errors mean. Should they halt?
-                self.add_field(record, self.error, f"JMESPath error: {e}")
+                self.add_field(record, self.errors, f"JMESPath error: {e}")
             except Exception as e:
-                self.add_field(record, self.error, f"Exception: {e}")
+                self.add_field(record, self.errors, f"Exception: {e}")
 
             yield record
 
