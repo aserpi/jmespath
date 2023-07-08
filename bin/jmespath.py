@@ -78,8 +78,9 @@ class JMESPath(StreamingCommand):
                 else:
                     field_json = json.loads(field)
             except ValueError:
-                # TODO(aserpi): Override output with default?
                 self.add_field(record, self.errors, "Invalid JSON.")
+                if self.default:
+                    self.add_field(record, self.output, self.default)
                 yield record
                 continue
 
@@ -97,6 +98,8 @@ class JMESPath(StreamingCommand):
             except jmespath.exceptions.JMESPathError as e:
                 # FIXME: Not 100% sure about what these errors mean. Should they halt?
                 self.add_field(record, self.errors, f"JMESPath error: {e}")
+                if self.default:
+                    self.add_field(record, self.output, self.default)
             except Exception as e:
                 self.add_field(record, self.errors, f"Exception: {e}")
 
