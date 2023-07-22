@@ -24,11 +24,11 @@ class JmespathSplunkFunctions(jmespath.functions.Functions):
 
     @jmespath.functions.signature({"types": ["object"]})
     def _func_items(self, arg):
-        """See pairs(arg)."""
-        return self._func_pairs(arg)
+        """See kvpairs(arg)."""
+        return self._func_kvpairs(arg)
 
     @jmespath.functions.signature({"types": ["object"]})
-    def _func_pairs(self, arg):
+    def _func_kvpairs(self, arg):
         """Create a [key, value] array for each key value pair in an object."""
         return [list(item) for item in arg.items()]
 
@@ -51,10 +51,10 @@ class JmespathSplunkFunctions(jmespath.functions.Functions):
     @jmespath.functions.signature({"types": ["array"]}, {"types": ["string"]},
                                   {"types": ["string"]})
     def _func_unroll(self, array, key_key, value_key):
-        """Build an object from an array of objects with name/value pairs.
+        """Build an object from an array of objects with key value pairs.
 
-        Example: unroll([{"Name": "Pair name", "Value": "Pair value"}], "Name", "Value")
-        produces {"Pair name": "Pair value"}.
+        Example: unroll([{"Key": "Pair key", "Value": "Pair value"}], "Key", "Value")
+        produces {"Pair key": "Pair value"}.
         """
         object_ = {}
         for item in array:
