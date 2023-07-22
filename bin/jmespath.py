@@ -6,17 +6,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 import jmespath
 import jmespath.exceptions
-from splunklib.searchcommands import Configuration, dispatch, Option, StreamingCommand
+from splunklib.searchcommands import Configuration, dispatch, Option, StreamingCommand, validators
 
 from jmespath_splunk_functions import JmespathSplunkFunctions
 
 
 @Configuration()
 class JMESPath(StreamingCommand):
+    """Resolve a JMESPath query.
+
+    .. code-block::
+        | jmespath (default=<string>)? (error=<field>)? (input=<field>)? (mvexpand=<boolean>)? (output=<field>)? <jmespath-expression>
+    """
     default = Option(doc="Default value for empty results.", default=None, require=False)
     errors = Option(doc="Field in which to store errors. Default: _jmespath_error.",
                     default="_jmespath_error", require=False)
     input = Option(doc="Input field. Default: _raw.", default="_raw", require=False)
+    mvexpand = Option(doc="If the result is an array, expand its values into separate events. "
+                          "Default: false.",
+                      default=False, require=False, validate=validators.Boolean())
     output = Option(doc="Output field. Default: jmespath", default="jmespath", require=False)
 
     @staticmethod
@@ -59,6 +67,7 @@ class JMESPath(StreamingCommand):
             raise ValueError("Requires exactly one expression argument.")
         jmespath_expr = jmespath.compile(self.fieldnames[0])
         jmespath_options = jmespath.Options(custom_functions=JmespathSplunkFunctions())
+        output_f = self.output_to_wildcard_fields if "*" in self.output else self.output_to_field
 
         for record in records:
             field = record.get(self.input)
@@ -76,11 +85,11 @@ class JMESPath(StreamingCommand):
 
             try:
                 jmespath_result = jmespath_expr.search(field_json, options=jmespath_options)
+                if isinstance(jmespath_result, list) and jmespath_result and self.mvexpand:
+                    yield from [output_f(r, record.copy()) for r in jmespath_result]
+                    continue
                 if jmespath_result is not None:
-                    if "*" in self.output:
-                        self.output_to_wildcard_fields(record, jmespath_result)
-                    else:
-                        self.output_to_field(record, jmespath_result)
+                    output_f(record, jmespath_result)
                 elif self.default is not None:
                     self.add_field(record, self.output, self.default)
             except jmespath.exceptions.UnknownFunctionError as e:
