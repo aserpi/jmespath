@@ -34,6 +34,11 @@ class JmespathSplunkFunctions(jmespath.functions.Functions):
 
     @jmespath.functions.signature({"types": ["array"]})
     def _func_to_hash(self, array):
+        """See to_object(array)."""
+        return self._func_to_object(array)
+
+    @jmespath.functions.signature({"types": ["array"]})
+    def _func_to_object(self, array):
         """Build an object from an array of key value pairs.
 
         If there are duplicates, the last value wins.
