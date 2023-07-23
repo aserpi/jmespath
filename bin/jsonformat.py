@@ -1,157 +1,114 @@
 import ast
+import collections
 import json
 import os
+import re
 import sys
-from functools import partial
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 
 from splunklib.searchcommands import dispatch, StreamingCommand, Configuration, Option, validators
 
 
-def from_python(s):
-    try:
-        return ast.literal_eval(s)
-    except SyntaxError as e:
-        raise ValueError(e.msg)
-
-
 @Configuration()
 class JsonFormatCommand(StreamingCommand):
-    """ Format a that a Json field and report any errors, if requested.
-
-    ##Syntax
+    """Formats JSON strings as specified.
 
     .. code-block::
-        jsonformat (indent=<int>)? (order=undefined|preserve|sort) (input_mode=json|python)? (errors=<field>)? (<field> (as <field>)?)*
-
+        | jsonformat (errors=<field>)? (indent=<int>)? (input_mode=(json|python))? (order=(preserve|sort))? (output_mode=(json|makeresults))? (<field> (AS <field>)?)+
     """
-    indent = Option(
-        doc="How many spaces for each indentation.",
-        require=False, default=2, validate=validators.Integer(0,10))
-
-    order = Option(
-        doc="Pick order options.  undefined (default), preserve, or sort.  Only impacts hash order",
-        require=False, default="preserve", validate=validators.Set("undefined", "preserve", "sort"))
-
-    errors = Option(
-        doc="field name to capture any parsing error messages.",
-        require=False, default=None, validate=validators.Fieldname())
-
-    input_mode = Option(
-        doc="Select an alternate input mode.  Supports 'json' and 'python' repr format "
-            "(literals only).  In this mode, the 'preserve' order option will not work.",
-        require=False, default="json", validate=validators.Set("json", "python"))
-
-    output_mode = Option(
-        doc="Select an alternate output mode.  Supports 'json' (the default) and 'makeresults' "
-            "which allows easy creation of run-anywhere sample of a json object.  "
-            "You can paste the output to Splunk Answers when requesting help with JSON processing.",
-        require=False, default="json", validate=validators.Set("json", "makeresults"))
+    errors = Option(doc="Field in which to store errors. Default: _jmespath_error.",
+                    default="_jmespath_error", require=False, validate=validators.Fieldname())
+    indent = Option(doc="How many spaces for each indentation. Default: 2.",
+                    default=2, require=False, validate=validators.Integer(0, 10))
+    input_mode = Option(doc="Input mode: json (default), python (repr format, literals only).",
+                        default="json", require=False, validate=validators.Set("json", "python"))
+    order = Option(doc="Order keys in objects: preserve (default), sort.",
+                   default="preserve", require=False, validate=validators.Set("preserve", "sort"))
+    output_mode = Option(doc="Output mode: json (default), makeresults (for example creation).",
+                         default="json", require=False,
+                         validate=validators.Set("json", "makeresults"))
+    _special_chars_pattern = re.compile("|".join(('\\', "\n", "\t", '"')))
 
     @staticmethod
-    def handle_field_as(fieldnames):
-        """ Convert a list of fields, which may include "a as b" style renaming into a more usable
-        output format.  The output is a list of tuples in the form of (src, dest) showing any rename\
-        mappings.  In the simple case, where no renaming occurs, src and dest are the same.
+    def _parse_field(field_value, parse_function):
+        parsing_errors = []
+        if isinstance(field_value, (list, tuple)):
+            parsed_field = []
+            for value in field_value:
+                try:
+                    parsed_field.append(parse_function(value))
+                except (json.decoder.JSONDecodeError, ValueError) as e:
+                    parsing_errors.append(str(e))
+        else:
+            try:
+                parsed_field = parse_function(field_value)
+            except (json.decoder.JSONDecodeError, ValueError) as e:
+                parsed_field = None
+                parsing_errors.append(str(e))
+        return parsed_field, parsing_errors
+
+    def _output_json(self, data, _):
+        """Formats a JSON object."""
+        return json.dumps(data, ensure_ascii=False, indent=self.indent,
+                          sort_keys=(self.order == "sort"))
+
+    def _output_makeresults(self, data, field):
+        """Builds a "makeresults" (run-anywhere) output sample."""
+        json_min = json.dumps(data, ensure_ascii=False, indent=None, separators=(",", ":"))
+        json_min = self._special_chars_pattern.sub(lambda m: f"\\{re.escape(m.group(0))}",
+                                                   json_min)
+        return f'| makeresults | eval {field}="{json_min}"'
+
+    def _rename_fields(self):
+        """Convert a list of fields in a list of (old_field, new_field) tuples.
+        The list of names may include renames with the syntax "old_field as new_field".
         """
-        fields = fieldnames[:]
-        fieldpairs = []
+        fields = collections.deque(self.fieldnames)
+        renamed_fields = []
         while fields:
-            f = fields.pop(0)
+            field = fields.popleft()
             if len(fields) > 1 and fields[0].lower() == "as":
-                fieldpairs.append( (f, fields[1]))
-                fields = fields[2:]
+                field.popleft()
+                renamed_fields.append((field, field.popleft()))
             else:
-                fieldpairs.append((f,f))
-        return fieldpairs
+                renamed_fields.append((field, field))
+        return renamed_fields
 
     def stream(self, records):
-        json_loads = json.loads
-        json_dumps = partial(json.dumps, ensure_ascii=False, indent=self.indent)
+        parse_function = ast.literal_eval if self.input_mode == "python" else json.loads
+        renamed_fields = self._rename_fields() if self.fieldnames else [("_raw", "_raw")]
+        self.logger.info(f"Found field mapping {renamed_fields}")
 
-        if self.order == "preserve":
-            json_loads = partial(json.loads)
-        elif self.order == "sort":
-            json_dumps = partial(json.dumps, ensure_ascii=False, indent=self.indent, sort_keys=True)
-
-        if self.input_mode == "python":
-            json_loads = from_python
-
-        if self.fieldnames:
-            fieldpairs = self.handle_field_as(self.fieldnames)
+        if self.output_mode == "makeresults":
+            output_field = self._output_makeresults
         else:
-            fieldpairs = [ ("_raw", "_raw") ]
-
-        self.logger.info("fieldnames={}".format(self.fieldnames))
-        for (src_field, dest_field) in fieldpairs:
-            if src_field != dest_field:
-                self.logger.info("Mapping JSON field {} -> {}".format(src_field, dest_field))
-        self.logger.info("fieldpairs={}".format(fieldpairs))
-
-        def output_json(json_string):
-            # Normal mode.  Just load and dump json
-            data = json_loads(json_string)
-            return json_dumps(data, ensure_ascii=False)
-
-        def output_makeresults(json_string):
-            # Build a "makeresults" (run-anywhere) output sample
-            quote_chars = ('\\', "\n", "\t", '"')       # Order matters
-            try:
-                data = json_loads(json_string)
-                json_min = json.dumps(data, ensure_ascii=False, indent=None, separators=(",", ":"))
-                for char in quote_chars:
-                    json_min = json_min.replace(char, "\\" + char)
-                return '| makeresults | eval {}="{}"'.format(src_field, json_min)
-            except ValueError as e:
-                return "ERROR:  {!r}   {}".format(json_string, e)
-
-        if self.output_mode == "json":
-            output = output_json
-        elif self.output_mode == "makeresults":
-            output = output_makeresults
-
-        first_row = True
-        linecount_set = False
+            output_field = self._output_json
 
         for record in records:
-            errors = []
-            for (src_field, dest_field) in fieldpairs:
-                json_string = record.get(src_field, None)
-                if isinstance(json_string, (list, tuple)):
-                    # XXX: Add proper support for multivalue input fields.  For now, skip.
-                    json_string = None
-                if json_string:
-                    try:
-                        text = output(json_string)
-                        record[dest_field] = text
-                        # Handle special case for _raw message update
-                        if dest_field == "_raw":
-                            if "linecount" in record:
-                                record["linecount"] = len(text.splitlines())
-                                linecount_set = True
-                    except ValueError as e:
-                        if len(fieldpairs) > 1:
-                            errors.append("Field {} error:  {}".format(src_field, e.message))
-                        else:
-                            errors.append(e.message)
-                else:
-                    if src_field != dest_field:
-                        record[dest_field] = json_string
-                if self.errors:
-                    record[self.errors] = errors or "none"
+            errors = {}
+            for (src_field, dest_field) in renamed_fields:
+                field_value = record.get(src_field)
+                if not field_value:
+                    continue
 
-            # Make sure that all of our output fields are present on the first record, since this
-            # dictates the possible return fields which cannot be updated later.
-            if first_row:
-                first_row = False
-                needed_fields = [ df for (sf, df) in fieldpairs ]
-                if linecount_set:
-                    needed_fields.append("linecount")
-                for f in needed_fields:
-                    if f not in record:
-                        record[f] = None
+                parsed_field, parsing_errors = self._parse_field(field_value, parse_function)
+                if parsing_errors:
+                    errors[src_field] = parsing_errors
+                if not parsed_field:
+                    continue
 
+                try:
+                    text = output_field(parsed_field, dest_field)
+                    self.add_field(record, dest_field, text)
+                except ValueError as e:
+                    if src_field in errors:
+                        errors[src_field].append(e)
+                    else:
+                        errors[src_field] = [e]
+            if errors:
+                self.add_field(record, self.errors, json.dumps(errors))
             yield record
+
 
 dispatch(JsonFormatCommand, sys.argv, sys.stdin, sys.stdout, __name__)
