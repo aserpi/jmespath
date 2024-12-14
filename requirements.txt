@@ -1,2 +1,2 @@
-jmespath~=1.0
-splunk-sdk~=1.7
+pre-commit~=4.0
+splunk-packaging-toolkit~=1.0

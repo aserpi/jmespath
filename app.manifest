@@ -1,0 +1,36 @@
+{
+  "info": {
+    "author": [
+      {
+        "email": "splunkbase@kintyre.co",
+        "name": "Kintyre"
+      }
+    ],
+    "classification": {
+      "categories": [
+        "Information",
+        "Utility"
+      ],
+      "developmentStatus": "Production/Stable"
+    },
+    "description": "Kintyre's JMESPath for Splunk",
+    "id": {
+      "name": "jmespath",
+      "version": "1.9.6"
+    },
+    "license": {
+      "name": "MIT License",
+      "text": "./LICENSE"
+    },
+    "title": "JMESPath for Splunk"
+  },
+  "schemaVersion": "2.0.0",
+  "supportedDeployments": [
+    "_standalone",
+    "_distributed",
+    "_search_head_clustering"
+  ],
+  "targetWorkloads": [
+    "_search_heads"
+  ]
+}
