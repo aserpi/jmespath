@@ -1,2 +1,2 @@
-jmespath~=1.0
+jmespath-community~=1.1
 splunk-sdk~=2.1

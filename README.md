@@ -1,4 +1,4 @@
-# JMESPath for Splunk
+# JMESPath Community for Splunk
 
 JMESPath (pronounced "james path") makes dealing with JSON data in Splunk easier by leveraging a standardized query language for JSON.  This allows you to declaratively specify how to extract elements from a JSON document.  In many ways, this is a better `spath`.
 
@@ -32,6 +32,7 @@ See the full [Change log](https://github.com/Kintyre/jmespath/wiki/Change-Log)
 
  * John Berwick: original author of this Splunk app
  * Lowell Alleman: current maintainer
- * James Saryerwinnie: author of [JMESPath](https://pypi.org/project/jmespath/) Python library
+ * JMESPath Community: Maintainer of the [JMESPath Community](https://pypi.org/project/jmespath-community/)
+   Python library
  * Mike Rybar: Logo
 

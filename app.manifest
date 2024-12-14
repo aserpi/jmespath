@@ -13,7 +13,7 @@
       ],
       "developmentStatus": "Production/Stable"
     },
-    "description": "Kintyre's JMESPath for Splunk",
+    "description": "Search command to manipulate JSON objects based on JMESPath Community",
     "id": {
       "name": "jmespath",
       "version": "1.9.6"
@@ -22,7 +22,7 @@
       "name": "MIT License",
       "text": "./LICENSE"
     },
-    "title": "JMESPath for Splunk"
+    "title": "JMESPath Community for Splunk"
   },
   "schemaVersion": "2.0.0",
   "supportedDeployments": [

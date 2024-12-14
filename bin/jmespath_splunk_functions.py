@@ -11,7 +11,7 @@ class JmespathSplunkFunctions(jmespath.functions.Functions):
     """Custom functions for JMSEPath to solve some typical Splunk use cases."""
 
     @jmespath.functions.signature({"types": ["array", "string"]})
-    def _func_from_string(self, arg):
+    def _func_parse_json(self, arg):
         """Parse a nested JSON text."""
         if arg is None:
             return None
@@ -21,37 +21,6 @@ class JmespathSplunkFunctions(jmespath.functions.Functions):
             return json.loads(arg)
         except Exception:
             return arg
-
-    @jmespath.functions.signature({"types": ["object"]})
-    def _func_items(self, arg):
-        """See kvpairs(arg)."""
-        return self._func_kvpairs(arg)
-
-    @jmespath.functions.signature({"types": ["object"]})
-    def _func_kvpairs(self, arg):
-        """Create a [key, value] array for each key value pair in an object."""
-        return [list(item) for item in arg.items()]
-
-    @jmespath.functions.signature({"types": ["array"]})
-    def _func_to_hash(self, array):
-        """See to_object(array)."""
-        return self._func_to_object(array)
-
-    @jmespath.functions.signature({"types": ["array"]})
-    def _func_to_object(self, array):
-        """Build an object from an array of key value pairs.
-
-        If there are duplicates, the last value wins.
-        It is the inverse of items().
-        """
-        object_ = {}
-        for item in array:
-            try:
-                key, value = item
-                object_[key] = value
-            except Exception:
-                pass
-        return object_
 
     @jmespath.functions.signature({"types": ["array"]}, {"types": ["string"]},
                                   {"types": ["string"]})
