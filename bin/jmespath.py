@@ -26,6 +26,7 @@ class JMESPath(StreamingCommand):
                           "Default: false.",
                       default=False, require=False, validate=validators.Boolean())
     output = Option(doc="Output field. Default: jmespath", default="jmespath", require=False)
+    query = Option(doc="JMESPath query.", require=True)
 
     @staticmethod
     def flatten(arg):
@@ -63,9 +64,7 @@ class JMESPath(StreamingCommand):
         self.add_field(record, field, flat_values)
 
     def stream(self, records):
-        if len(self.fieldnames) != 1:
-            raise ValueError("Requires exactly one expression argument.")
-        jmespath_expr = jmespath.compile(self.fieldnames[0])
+        jmespath_expr = jmespath.compile(self.query)
         jmespath_options = jmespath.Options(custom_functions=JmespathSplunkFunctions())
         output_f = self.output_to_wildcard_fields if "*" in self.output else self.output_to_field
 
