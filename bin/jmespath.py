@@ -76,7 +76,7 @@ class JMESPath(StreamingCommand):
                     field_json = [json.loads(v) for v in field]
                 else:
                     field_json = json.loads(field)
-            except ValueError:
+            except (TypeError, ValueError):
                 self.add_field(record, self.errors, "Invalid JSON.")
                 if self.default:
                     self.add_field(record, self.output, self.default)
