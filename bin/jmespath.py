@@ -50,7 +50,7 @@ class JMESPath(StreamingCommand):
                 self.write_output(record, self.output.replace("*", key, 1), value)
         elif isinstance(values, list):
             for idx, value in enumerate(values):
-                self.write_output(record, self.output.replace("*", idx, 1), value)
+                self.write_output(record, self.output.replace("*", str(idx), 1), value)
         else:
             self.write_output(record, self.output, values)
 
