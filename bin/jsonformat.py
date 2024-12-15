@@ -69,8 +69,8 @@ class JsonFormatCommand(StreamingCommand):
         while fields:
             field = fields.popleft()
             if len(fields) > 1 and fields[0].lower() == "as":
-                field.popleft()
-                renamed_fields.append((field, field.popleft()))
+                fields.popleft()
+                renamed_fields.append((field, fields.popleft()))
             else:
                 renamed_fields.append((field, field))
         return renamed_fields
