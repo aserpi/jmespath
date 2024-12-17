@@ -1,5 +1,5 @@
 .git*
 .pre-commit-config.yaml
-.splunkbase
 .venv
+appIcon.svg
 requirements.txt
